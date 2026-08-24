@@ -1,3 +1,54 @@
+## About this copy
+
+This is a patched copy of [tvhong/incremental-reading](https://github.com/tvhong/incremental-reading),
+tracking upstream v4.13.0. It exists to fix edits being silently lost when the add-on is
+used alongside [Edit Field During Review (Cloze)](https://github.com/BlueGreenMagick/Edit-Field-During-Review-Cloze)
+for incremental writing. Everything below this section is upstream's own documentation.
+
+### What is different
+
+**Edits made in a field no longer vanish.** `TextManager.save()` read back the innerHTML of
+the `.ir-text` container. Once a field is made editable, EFDRC wraps the field value in its
+own element, so the container's innerHTML *is* that wrapper — attributes, inline event
+handlers and all — and `save()` stored it in the Text field. On the next render the template
+wrapped the stored wrapper again, leaving two nested elements matching `[data-EFDRCfield]`
+for one field. EFDRC assigns innerHTML to every match, so overwriting the outer one detaches
+the inner one, which is the element holding the caret. EFDRC only saves on blur when the
+element carries `data-EFDRCnid`, so it then dropped the edit with no error and re-rendered
+the card from the database. It now reads the inside of the wrapper, so foreign markup never
+enters the field.
+
+**The text commands stay out of the way while you write.** Highlight, extract, remove and
+undo are bound to bare letters (<kbd>h</kbd>, <kbd>x</kbd>, <kbd>z</kbd>, <kbd>u</kbd>), and
+the settings dialog only offers single characters for them, so there is no combination that
+is not also ordinary typing. They now do nothing while a field has the caret, and behave as
+before while reading. `undo()` matters most here: its `mw.reset()` pulls the reviewer to
+another card mid-sentence and takes any unsaved edit with it.
+
+**Scroll position survives an edit.** Swapping in a field's raw value reflows the page and
+fires a scroll event that would overwrite the reader's real position.
+
+**`_prepareCard()` uses the card it was handed** rather than reading `mw.reviewer.card`,
+which is a different card, or `None`, in the previewer and card layout screens. Raising
+there aborted the rest of the `card_will_show` filter chain.
+
+### Installing
+
+Build with `make release`, or take a release build, and install through
+*Tools → Add-ons → Install from file*. The package name is
+`incremental_reading_efdrc_fix` rather than the AnkiWeb ID, so AnkiWeb updates cannot
+overwrite it. It declares a conflict with the official add-on (`999215520`), which Anki
+disables on install — running both at once double-registers every hook and shortcut.
+
+Settings are unaffected: they live in `<profile>/collection.media/_ir.json`, not the add-on
+folder.
+
+### Licence
+
+ISC, unchanged from upstream. See [LICENSE.md](LICENSE.md).
+
+---
+
 **_2021 Project Status: Active development will resume on Saturday the 27th of February._**
 
 # Incremental Reading for Anki
