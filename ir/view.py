@@ -19,6 +19,7 @@ import re
 from anki.cards import Card
 from aqt import gui_hooks, mw
 
+from .legend import legendJson
 from .settings import SettingsManager
 from .util import isIrCard, loadFile, viewingIrText
 
@@ -30,6 +31,7 @@ class ViewManager:
         self._scrollScript = loadFile("web", "scroll.js")
         self._textScript = loadFile("web", "text.js")
         self._tocScript = loadFile("web", "table_of_contents.js")
+        self._legendScript = loadFile("web", "shortcut_legend.js")
         self._zoomFactor = 1
 
         gui_hooks.state_did_change.append(self.resetZoom)
@@ -103,12 +105,22 @@ class ViewManager:
             js += self._textScript
             js += self._tocScript
 
+            if self._settings["legendEnabled"]:
+                js += f"IR_LEGEND = {legendJson(self._settings)};\n"
+                js += self._legendScript
+
             js += f"""
 SAVED_POSITION = {self._settings["scroll"][cid]};
 LINE_SCROLL_FACTOR = {self._settings["lineScrollFactor"]};
 PAGE_SCROLL_FACTOR = {self._settings["pageScrollFactor"]};
             """
             js += self._scrollScript
+        else:
+            # The legend is attached to document.body, which outlives the card
+            # being replaced, so it has to be taken away when leaving an IR
+            # question. Undefined until a legend has been shown, so this costs
+            # nothing on a reviewer that has not seen one.
+            js += "if (window.__irLegendRemove) { window.__irLegendRemove(); }"
 
         if js:
             html += "<script id='ir-script'>" + js + "</script>"

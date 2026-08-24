@@ -61,6 +61,7 @@ class SettingsDialog:
     altKeyCheckBox = None
     bgColorComboBox = None
     boldSeqEditBox = None
+    legendCheckBox = None
     colorPreviewLabel = None
     copyTitleCheckBox = None
     ctrlKeyCheckBox = None
@@ -225,6 +226,7 @@ class SettingsDialog:
             self.underlineSeqEditBox.keySequence().toString()
         )
         self.settings["strikeSeq"] = self.strikeSeqEditBox.keySequence().toString()
+        self.settings["legendEnabled"] = self.legendCheckBox.isChecked()
 
         mw.readingManager.viewManager.resetZoom(mw.state)
         return done
@@ -297,6 +299,10 @@ class SettingsDialog:
         controlsLayout.addLayout(extractKeyLayout)
         controlsLayout.addLayout(removeKeyLayout)
         controlsLayout.addLayout(undoKeyLayout)
+        self.legendCheckBox = QCheckBox("Show shortcut legend while studying")
+        self.legendCheckBox.setChecked(self.settings["legendEnabled"])
+        controlsLayout.addWidget(self.legendCheckBox)
+
         controlsLayout.addStretch()
 
         controlsGroupBox = QGroupBox("Basic Controls")

@@ -58,6 +58,7 @@ class SettingsManager:
         "laterMethod": "percent",
         "laterRandom": True,
         "laterValue": 50,
+        "legendEnabled": True,
         "lineScrollFactor": 0.05,
         "modelName": "IR3",
         "modified": [],
