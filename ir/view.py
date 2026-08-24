@@ -30,6 +30,7 @@ class ViewManager:
     def __init__(self):
         self._scrollScript = loadFile("web", "scroll.js")
         self._textScript = loadFile("web", "text.js")
+        self._guttersScript = loadFile("web", "gutters.js")
         self._tocScript = loadFile("web", "table_of_contents.js")
         self._legendScript = loadFile("web", "shortcut_legend.js")
         self._zoomFactor = 1
@@ -103,6 +104,7 @@ class ViewManager:
 
             self._setZoom(self._settings["zoom"][cid])
             js += self._textScript
+            js += self._guttersScript
             js += self._tocScript
 
             if self._settings["legendEnabled"]:
@@ -120,7 +122,11 @@ PAGE_SCROLL_FACTOR = {self._settings["pageScrollFactor"]};
             # being replaced, so it has to be taken away when leaving an IR
             # question. Undefined until a legend has been shown, so this costs
             # nothing on a reviewer that has not seen one.
-            js += "if (window.__irLegendRemove) { window.__irLegendRemove(); }"
+            js += (
+                "if (window.__irLegendRemove) { window.__irLegendRemove(); }"
+                # Padding reserved for the panels has to go with them.
+                "if (window.IRGutters) { window.IRGutters.reset(); }"
+            )
 
         if js:
             html += "<script id='ir-script'>" + js + "</script>"

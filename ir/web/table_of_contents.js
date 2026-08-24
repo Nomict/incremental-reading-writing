@@ -143,6 +143,21 @@ function removeTocContainerElement() {
     if (tocContainer) {
         tocContainer.remove();
     }
+    if (window.IRGutters) {
+        window.IRGutters.unregister('ir-toc-container');
+    }
+}
+
+// Collapsing to its header is how the ToC gives way when the window is too
+// narrow to hold both it and a readable card.
+function setTocCollapsed(collapsed) {
+    const tocContent = document.getElementById('ir-toc-content');
+    const toggleButton = document.getElementById('ir-toc-toggle');
+    if (!tocContent || !toggleButton) {
+        return;
+    }
+    tocContent.style.display = collapsed ? 'none' : 'block';
+    toggleButton.textContent = collapsed ? '+' : '−';
 }
 
 function addTocContainerElement(tocItems) {
@@ -151,15 +166,26 @@ function addTocContainerElement(tocItems) {
     }
 
     const tocContainer = createTocContainerElement();
-    
+
     const tocHeader = createTocHeaderElement();
     tocContainer.appendChild(tocHeader);
-    
+
     const tocContent = createTocContentElement(tocItems);
     tocContainer.appendChild(tocContent);
-    
+
     document.body.appendChild(tocContainer);
-    
+
+    // Reserve the strip it occupies so the card text stops short of it rather
+    // than running underneath, where it can be neither read nor clicked into.
+    if (window.IRGutters) {
+        window.IRGutters.register(
+            'ir-toc-container',
+            'right',
+            tocContainer,
+            setTocCollapsed
+        );
+    }
+
     return true;
 }
 
@@ -179,13 +205,12 @@ function createTocHeaderElement() {
     toggleButton.addEventListener('click', function() {
         const tocContent = document.getElementById('ir-toc-content');
         const isVisible = tocContent.style.display !== 'none';
-        
-        if (isVisible) {
-            tocContent.style.display = 'none';
-            this.textContent = '+';
-        } else {
-            tocContent.style.display = 'block';
-            this.textContent = '−';
+
+        setTocCollapsed(isVisible);
+
+        // Collapsing frees the space it was holding, so give it back.
+        if (window.IRGutters) {
+            window.IRGutters.refresh();
         }
     });
 
@@ -263,6 +288,10 @@ function makeTocDraggable() {
     });
     
     document.addEventListener('mouseup', function(e) {
+        if (isDragging && window.IRGutters) {
+            // It has been moved, so the strip it needs is somewhere else now.
+            window.IRGutters.refresh();
+        }
         isDragging = false;
     });
 }

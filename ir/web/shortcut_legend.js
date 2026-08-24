@@ -259,7 +259,21 @@ function createLegendElement(data) {
         const collapsed = !legend.classList.contains("ir-legend-collapsed");
         applyCollapsed(collapsed);
         setLegendCollapsed(collapsed);
+        // Collapsing frees the space it was holding, so give it back.
+        if (window.IRGutters) {
+            window.IRGutters.refresh();
+        }
     });
+
+    // Collapsing is how the legend gets out of the way when the window is too
+    // narrow for both it and a readable card.
+    legend.__irSetCompact = (compact) => {
+        if (compact) {
+            applyCollapsed(true);
+        } else {
+            applyCollapsed(isLegendCollapsed());
+        }
+    };
 
     return legend;
 }
@@ -268,6 +282,9 @@ function removeLegendElement() {
     const existing = document.getElementById(IR_LEGEND_ID);
     if (existing) {
         existing.remove();
+    }
+    if (window.IRGutters) {
+        window.IRGutters.unregister(IR_LEGEND_ID);
     }
 }
 
@@ -279,7 +296,19 @@ function createShortcutLegend() {
     }
 
     addLegendStyles();
-    document.body.appendChild(createLegendElement(IR_LEGEND));
+    const legend = createLegendElement(IR_LEGEND);
+    document.body.appendChild(legend);
+
+    // Reserve the strip it occupies so the card text stops short of it rather
+    // than running underneath, where it can be neither read nor clicked into.
+    if (window.IRGutters) {
+        window.IRGutters.register(
+            IR_LEGEND_ID,
+            "left",
+            legend,
+            legend.__irSetCompact
+        );
+    }
 }
 
 // The legend lives on document.body, which survives the card being replaced.
