@@ -1,4 +1,6 @@
 {
-    "package": "999215520",
-    "name": "Incremental Reading v4.13.0"
+    "package": "incremental_reading_efdrc_fix",
+    "name": "Incremental Reading v4.13.0 (EFDRC save fix)",
+    "conflicts": ["999215520"],
+    "homepage": "https://github.com/tvhong/incremental-reading"
 }

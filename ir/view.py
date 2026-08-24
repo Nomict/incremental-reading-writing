@@ -99,7 +99,7 @@ class ViewManager:
             if cid not in self._settings["scroll"]:
                 self._settings["scroll"][cid] = 0
 
-            self._setZoom()
+            self._setZoom(self._settings["zoom"][cid])
             js += self._textScript
             js += self._tocScript
 
@@ -117,8 +117,19 @@ PAGE_SCROLL_FACTOR = {self._settings["pageScrollFactor"]};
 
     def _saveScroll(self, _event=None):
         if viewingIrText() and mw.reviewer.card is not None:
+            cid = str(mw.reviewer.card.id)
 
             def callback(currentPos):
-                self._settings["scroll"][str(mw.reviewer.card.id)] = currentPos
+                # None means the position was not worth recording (see below).
+                if currentPos is None:
+                    return
+                self._settings["scroll"][cid] = currentPos
 
-            mw.web.evalWithCallback("window.pageYOffset;", callback)
+            # While a field is being edited, another add-on may swap the field's
+            # HTML for its raw value, which reflows the page and fires a bogus
+            # scroll event. Don't record the position that comes out of it.
+            mw.web.evalWithCallback(
+                'document.querySelector("#qa[data-efdrc-editing]")'
+                " ? null : window.pageYOffset;",
+                callback,
+            )

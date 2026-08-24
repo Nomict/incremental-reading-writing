@@ -185,6 +185,35 @@ class TextManager:
         mw.reset()
         tooltip("Undone")
 
+    # Reads back the text container's HTML. If another add-on (e.g. Edit Field
+    # During Review) has wrapped the field in its own element, read the inside
+    # of that wrapper instead, so its markup is never stored in the field.
+    _READ_TEXT_JS = """
+(function () {
+    var container = document.getElementsByClassName("ir-text")[0];
+    if (!container) {
+        return null;
+    }
+    var field = container.querySelector("[data-EFDRCfield]");
+    if (field) {
+        // Never read a field while it is being edited: its HTML is the raw
+        // field value mid-edit, and the editing add-on owns saving it. Test
+        // for focus rather than for contenteditable, which that add-on leaves
+        // permanently set on every field when its ctrl_click option is off.
+        var active = document.activeElement;
+        if (
+            document.querySelector("#qa[data-efdrc-editing]") ||
+            field === active ||
+            field.contains(active)
+        ) {
+            return null;
+        }
+        return field.innerHTML;
+    }
+    return container.innerHTML;
+})();
+"""
+
     def save(self):
         def callback(text):
             if text:
@@ -194,7 +223,4 @@ class TextManager:
                 # note.flush()
                 mw.col.update_note(note)
 
-        mw.web.evalWithCallback(
-            'document.getElementsByClassName("ir-text")[0].innerHTML;',
-            callback,
-        )
+        mw.web.evalWithCallback(self._READ_TEXT_JS, callback)
