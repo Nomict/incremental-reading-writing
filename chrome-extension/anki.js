@@ -142,38 +142,53 @@ async function storeImage (src, config) {
   return filename
 }
 
+// This runs in the service worker, which has no DOM and so no DOMParser. The
+// content script has already replaced each image src with an opaque token and
+// handed over the token/URL pairs, so putting the final values in is an exact
+// string replacement rather than an HTML parse.
+function putBack (html, token, value) {
+  return html.split(token).join(value.replace(/"/g, '&quot;'))
+}
+
 /* Anki resolves a bare filename against collection.media, so rewriting src to
  * the stored name is what makes the image survive the page going away. Any
  * image that cannot be fetched keeps its original absolute URL: the note still
  * renders online, which beats a broken reference. */
-export async function localiseImages (html, config, onProgress) {
-  const doc = new DOMParser().parseFromString(html, 'text/html')
-  const images = Array.from(doc.querySelectorAll('img[src]')).filter((img) => {
-    const src = img.getAttribute('src')
-    return src && !src.startsWith('data:')
-  })
-
+export async function localiseImages (html, images, config, onProgress) {
+  const list = images || []
   const failures = []
-  const seen = new Map()
-  for (let i = 0; i < images.length; i++) {
-    const img = images[i]
-    const src = img.getAttribute('src')
+  const stored = new Map()
+  let output = html
+
+  for (let i = 0; i < list.length; i++) {
+    const { token, url } = list[i]
     if (onProgress) {
-      onProgress(i + 1, images.length)
+      onProgress(i + 1, list.length)
     }
-    if (seen.has(src)) {
-      img.setAttribute('src', seen.get(src))
+    if (stored.has(url)) {
+      output = putBack(output, token, stored.get(url))
       continue
     }
     try {
-      const filename = await storeImage(src, config)
-      seen.set(src, filename)
-      img.setAttribute('src', filename)
+      const filename = await storeImage(url, config)
+      stored.set(url, filename)
+      output = putBack(output, token, filename)
     } catch (e) {
-      failures.push(`${src} (${e.message})`)
+      failures.push(`${url} (${e.message})`)
+      output = putBack(output, token, url)
     }
   }
-  return { html: doc.body.innerHTML, imported: seen.size, failures }
+
+  return { html: output, imported: stored.size, failures }
+}
+
+// Used when images are not being copied, so the tokens never reach the note.
+export function restoreImageUrls (html, images) {
+  let output = html
+  for (const { token, url } of images || []) {
+    output = putBack(output, token, url)
+  }
+  return output
 }
 
 /* Note assembly ----------------------------------------------------------- */
@@ -218,8 +233,10 @@ export async function addNote (article, config, onProgress) {
   let content = article.content
   let media = { imported: 0, failures: [] }
   if (config.importImages) {
-    media = await localiseImages(content, config, onProgress)
+    media = await localiseImages(content, article.images, config, onProgress)
     content = media.html
+  } else {
+    content = restoreImageUrls(content, article.images)
   }
 
   const fields = buildFields(Object.assign({}, article, { content }), config)

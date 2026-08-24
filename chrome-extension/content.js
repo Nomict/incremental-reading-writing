@@ -14,9 +14,10 @@
   }
 
   const ABSOLUTE_ATTRS = ['src', 'href', 'poster']
+  const STRIP = 'script, style, noscript, iframe, object, embed, link, meta, form, nav'
 
   // Readability rewrites relative URLs against the document's base, but only
-  // inside what it keeps. Full-page mode gets the same treatment by hand, so a
+  // inside what it keeps. The other modes get the same treatment by hand, so a
   // note never carries a link that resolves against the collection folder.
   const absolutise = function (root, baseUrl) {
     for (const attr of ABSOLUTE_ATTRS) {
@@ -33,28 +34,63 @@
       }
     }
     // srcset routinely carries relative or malformed candidates; the note only
-    // needs one resolved src, which is already set.
+    // needs the one resolved src, which is already set.
     for (const el of root.querySelectorAll('[srcset]')) {
       el.removeAttribute('srcset')
     }
   }
 
-  const STRIP = 'script, style, noscript, iframe, object, embed, link, meta, form, nav'
+  /* Image sources are swapped for opaque tokens here, and the caller is given
+   * the token/URL pairs. The service worker that does the importing has no DOM
+   * to parse HTML with, so it puts the final values back by exact string
+   * replacement -- either a stored filename or, if images are not being
+   * copied, the original URL. The nonce keeps a token from colliding with
+   * anything in the page's own prose. */
+  const tokeniseImages = function (root) {
+    const nonce = Math.random().toString(36).slice(2, 10)
+    const images = []
+    let n = 0
+    for (const img of root.querySelectorAll('img[src]')) {
+      const src = img.getAttribute('src')
+      if (!src || src.startsWith('data:')) {
+        continue
+      }
+      const token = `__ir-img-${nonce}-${n++}__`
+      img.setAttribute('src', token)
+      images.push({ token, url: src })
+    }
+    return images
+  }
+
+  // Everything the three modes have in common: drop the junk, resolve URLs,
+  // pull the images out, serialise.
+  const finalise = function (root, extra) {
+    for (const el of root.querySelectorAll(STRIP)) {
+      el.remove()
+    }
+    absolutise(root, document.baseURI)
+    const images = tokeniseImages(root)
+    return Object.assign(
+      {
+        ok: true,
+        url: location.href,
+        content: root.innerHTML,
+        images,
+        siteName: location.hostname
+      },
+      extra
+    )
+  }
 
   const fullPage = function () {
     const clone = document.cloneNode(true)
-    for (const el of clone.querySelectorAll(STRIP)) {
-      el.remove()
-    }
     const body = clone.body || clone.documentElement
-    absolutise(body, document.baseURI)
-    return {
+    return finalise(body, {
+      mode: 'full',
       title: document.title || location.href,
-      content: body.innerHTML,
       excerpt: '',
-      byline: '',
-      siteName: location.hostname
-    }
+      byline: ''
+    })
   }
 
   const article = function () {
@@ -73,51 +109,43 @@
     }
     const holder = document.createElement('div')
     holder.innerHTML = parsed.content
-    for (const el of holder.querySelectorAll(STRIP)) {
-      el.remove()
-    }
-    absolutise(holder, document.baseURI)
-    return {
+    return finalise(holder, {
+      mode: 'article',
       title: parsed.title || document.title || location.href,
-      content: holder.innerHTML,
       excerpt: parsed.excerpt || '',
-      byline: parsed.byline || '',
-      siteName: parsed.siteName || location.hostname
+      byline: parsed.byline || ''
+    })
+  }
+
+  const selection = function () {
+    const sel = window.getSelection()
+    const holder = document.createElement('div')
+    for (let i = 0; i < sel.rangeCount; i++) {
+      holder.appendChild(sel.getRangeAt(i).cloneContents())
     }
+    return finalise(holder, {
+      mode: 'selection',
+      title: document.title || location.href,
+      excerpt: '',
+      byline: ''
+    })
   }
 
   window.__irImporterExtract = function (mode) {
-    const selection = window.getSelection()
-    if (mode === 'selection' && selection && !selection.isCollapsed) {
-      const holder = document.createElement('div')
-      for (let i = 0; i < selection.rangeCount; i++) {
-        holder.appendChild(selection.getRangeAt(i).cloneContents())
-      }
-      for (const el of holder.querySelectorAll(STRIP)) {
-        el.remove()
-      }
-      absolutise(holder, document.baseURI)
-      return {
-        ok: true,
-        url: location.href,
-        mode: 'selection',
-        title: document.title || location.href,
-        content: holder.innerHTML,
-        excerpt: '',
-        byline: '',
-        siteName: location.hostname
-      }
+    const sel = window.getSelection()
+    if (mode === 'selection' && sel && !sel.isCollapsed) {
+      return selection()
     }
-
-    let result = mode === 'full' ? fullPage() : article()
-    let usedMode = mode === 'full' ? 'full' : 'article'
-    if (!result) {
-      // Readability declines on pages that are not articles. Falling back is
-      // better than refusing: the user asked for this page specifically.
-      result = fullPage()
-      usedMode = 'full-fallback'
+    if (mode === 'full') {
+      return fullPage()
     }
-    return Object.assign({ ok: true, url: location.href, mode: usedMode }, result)
+    const found = article()
+    if (found) {
+      return found
+    }
+    // Readability declines on pages that are not articles. Falling back is
+    // better than refusing: the user asked for this page specifically.
+    return Object.assign(fullPage(), { mode: 'full-fallback' })
   }
 
   window.__irImporterHasSelection = function () {
