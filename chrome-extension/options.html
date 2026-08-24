@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Incremental Reading Importer — Settings</title>
+    <link rel="stylesheet" href="ui.css" />
+  </head>
+  <body class="options">
+    <h1>Incremental Reading Importer</h1>
+
+    <div id="message" class="message" hidden></div>
+
+    <section>
+      <h2>Connection</h2>
+      <label for="ankiUrl">AnkiConnect address</label>
+      <input type="text" id="ankiUrl" />
+      <p class="hint">
+        Anki must be running with the AnkiConnect add-on installed. AnkiConnect
+        also has to be told to accept requests from this extension: open
+        <em>Tools → Add-ons → AnkiConnect → Config</em> in Anki and add
+        <code id="origin"></code> to <code>webCorsOriginList</code>, then
+        restart Anki.
+      </p>
+      <button id="test">Test connection</button>
+    </section>
+
+    <section>
+      <h2>Destination</h2>
+      <label for="deck">Deck</label>
+      <select id="deck"></select>
+
+      <label for="noteType">Note type</label>
+      <select id="noteType"></select>
+
+      <label for="tags">Tags</label>
+      <input type="text" id="tags" />
+      <p class="hint">Space or comma separated. Leave empty for none.</p>
+    </section>
+
+    <section>
+      <h2>Fields</h2>
+      <p class="hint">
+        These must match the fields of the note type above. The defaults match
+        the Incremental Reading add-on's own <code>IR3</code> note type.
+      </p>
+
+      <label for="titleField">Title field</label>
+      <select id="titleField"></select>
+
+      <label for="textField">Text field</label>
+      <select id="textField"></select>
+
+      <label for="sourceField">Source field</label>
+      <select id="sourceField"></select>
+
+      <label for="priorityField">Priority field</label>
+      <select id="priorityField"></select>
+      <p class="hint">
+        Only if the add-on's priority feature is enabled. Leave as
+        <em>(none)</em> otherwise.
+      </p>
+
+      <label for="priority">Default priority</label>
+      <input type="text" id="priority" placeholder="e.g. 5" />
+
+      <label for="sourceFormat">Source format</label>
+      <input type="text" id="sourceFormat" />
+      <p class="hint">
+        <code>{url}</code> and <code>{date}</code> are replaced, matching the
+        add-on's <em>sourceFormat</em> setting.
+      </p>
+    </section>
+
+    <button id="save" class="primary">Save</button>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

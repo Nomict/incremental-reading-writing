@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Incremental Reading Importer",
+  "version": "1.0.0",
+  "description": "Send the page you are reading to Anki as an Incremental Reading note, via AnkiConnect.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "optional_host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Import to Anki"
+  },
+  "options_page": "options.html",
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+K",
+        "mac": "Command+Shift+K"
+      },
+      "description": "Import the current page to Anki"
+    }
+  }
+}

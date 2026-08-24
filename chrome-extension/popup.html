@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="ui.css" />
+  </head>
+  <body class="popup">
+    <h1>Import to Anki</h1>
+
+    <div id="message" class="message" hidden></div>
+
+    <div id="form">
+      <label for="title">Title</label>
+      <input type="text" id="title" />
+
+      <label for="deck">Deck</label>
+      <select id="deck"></select>
+
+      <label for="mode">Content</label>
+      <select id="mode">
+        <option value="article">Article only (Readability)</option>
+        <option value="full">Whole page</option>
+        <option value="selection">Selected text</option>
+      </select>
+
+      <div id="priority-row" hidden>
+        <label for="priority">Priority</label>
+        <input type="text" id="priority" placeholder="1–10" />
+      </div>
+
+      <label class="check">
+        <input type="checkbox" id="images" />
+        Copy images into the collection
+      </label>
+
+      <button id="import" class="primary">Import</button>
+    </div>
+
+    <p class="foot"><a href="#" id="options">Settings</a></p>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
