@@ -16,23 +16,53 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+// execCommand needs an editing host. While reading a card there is none, so
+// the document is briefly put into designMode. But when the selection already
+// sits inside a contenteditable -- a field being edited during review --
+// designMode would take over as the host and blur that field, and the editing
+// add-on answers a blur by saving and redrawing the card, which throws away
+// the highlight that was just applied. In that case leave designMode alone:
+// the field is already a host, so execCommand applies directly.
+function inEditableHost(sel) {
+    var node = sel.anchorNode;
+    var el = node && (node.nodeType === 1 ? node : node.parentElement);
+    if (!el) {
+        return false;
+    }
+    if (el.isContentEditable) {
+        return true;
+    }
+    return !!(el.closest && el.closest('[contenteditable="true"]'));
+}
+
+
 function highlight(bgColor, textColor) {
-    if (window.getSelection) {
-        var range, sel = window.getSelection();
+    if (!window.getSelection) {
+        return;
+    }
 
-        if (sel.rangeCount && sel.getRangeAt) {
-            range = sel.getRangeAt(0);
-        }
+    var sel = window.getSelection();
+    if (!sel.rangeCount || !sel.getRangeAt) {
+        return;
+    }
 
+    var range = sel.getRangeAt(0);
+    var editing = inEditableHost(sel);
+
+    if (!editing) {
         document.designMode = "on";
-        if (range) {
-            sel.removeAllRanges();
-            sel.addRange(range);
-        }
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
 
-        document.execCommand("foreColor", false, textColor);
-        document.execCommand("hiliteColor", false, bgColor);
+    document.execCommand("foreColor", false, textColor);
+    document.execCommand("hiliteColor", false, bgColor);
 
+    if (editing) {
+        // Leave a caret behind so typing can carry on; dropping every range
+        // would give the next keystroke nowhere to go.
+        sel.collapseToEnd();
+    } else {
         document.designMode = "off";
         sel.removeAllRanges();
     }
