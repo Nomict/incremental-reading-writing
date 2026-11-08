@@ -1,0 +1,95 @@
+name: Build add-on
+
+# Produces the installable .ankiaddon so it can be downloaded rather than
+# built by hand. Every push to main leaves one attached to the run; pushing a
+# tag also publishes it as a release asset, which is the stabler link to keep.
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      # The suite mocks aqt, so Anki itself is not needed here and PyQt6 does
+      # not have to be installed. test.yml covers the poetry path.
+      - name: Install test dependencies
+        run: python -m pip install --upgrade pip pytest beautifulsoup4
+
+      - name: Run tests
+        run: python -m pytest tests -q
+        env:
+          PYTHONPATH: .
+
+      # Asserts the structure Anki needs before anything is published: the
+      # package contents at the zip root, an importable package name, and the
+      # reviewer scripts present.
+      - name: Build and verify the add-on
+        run: python scripts/build_addon.py --out dist
+
+      - name: Attach the add-on to this run
+        uses: actions/upload-artifact@v4
+        with:
+          name: incremental-reading-addon
+          path: dist/*.ankiaddon
+          if-no-files-found: error
+          retention-days: 90
+
+  release:
+    # Only for tags, so an ordinary push does not create a release.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download the built add-on
+        uses: actions/download-artifact@v4
+        with:
+          name: incremental-reading-addon
+          path: dist
+
+      - name: Write the release notes
+        run: |
+          {
+            printf 'Download the `.ankiaddon` below, then in Anki:\n'
+            printf '**Tools -> Add-ons -> Install from file**.\n\n'
+            printf 'Installing replaces any earlier build in place. Settings are\n'
+            printf 'kept: they live in `collection.media/_ir.json`, not the\n'
+            printf 'add-on folder.\n'
+          } > release-notes.md
+
+      # gh ships on the runner, so no third-party action is involved in the
+      # step that has write access.
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/*.ankiaddon \
+            --title "${GITHUB_REF_NAME}" \
+            --notes-file release-notes.md

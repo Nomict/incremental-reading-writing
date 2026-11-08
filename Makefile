@@ -20,7 +20,7 @@ PROJECT_LONG=incremental-reading
 RELEASE_DIR=$(CURDIR)/release
 RELEASE_FILE=$(RELEASE_DIR)/$(PROJECT_LONG)-v$(VERSION).zip
 
-.PHONY: install-deps lint format test clean release
+.PHONY: install-deps lint format test clean package release
 
 all: install-deps test
 
@@ -51,6 +51,10 @@ clean:
 	find . -name .mypy_cache -type d -exec rm -rf {} +
 	find . -name .ropeproject -type d -exec rm -rf {} +
 	find . -name __pycache__ -type d -exec rm -rf {} +
+
+package:
+	@echo "Building the installable add-on..."
+	python3 scripts/build_addon.py
 
 release: test clean
 	@echo "Creating release file: $(RELEASE_FILE)"

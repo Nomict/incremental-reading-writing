@@ -24,6 +24,7 @@ __pycache__
 
 # Release artefacts
 release
+dist/
 incremental-reading-v*.zip
 
 # Anki addon metadata

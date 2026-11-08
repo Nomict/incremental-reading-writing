@@ -34,14 +34,41 @@ there aborted the rest of the `card_will_show` filter chain.
 
 ### Installing
 
-Build with `make release`, or take a release build, and install through
-*Tools → Add-ons → Install from file*. The package name is
-`incremental_reading_efdrc_fix` rather than the AnkiWeb ID, so AnkiWeb updates cannot
-overwrite it. It declares a conflict with the official add-on (`999215520`), which Anki
-disables on install — running both at once double-registers every hook and shortcut.
+**The quickest way** is to take a prebuilt file: either the asset on the
+[latest release](../../releases/latest), or, for the current `main`, the
+`incremental-reading-addon` artifact attached to the newest run under
+[Actions](../../actions/workflows/build-addon.yml). Then install it through
+*Tools → Add-ons → Install from file*.
+
+**To build it yourself**, from a checkout:
+
+```
+make package
+```
+
+which writes `dist/incremental-reading-<version>.ankiaddon`. It needs nothing
+but Python — no poetry, unlike `make release`. It also checks the result is
+actually installable: the package contents at the zip root rather than the
+`ir/` directory itself, an importable package name, and the reviewer scripts
+present. Anki rejects a wrongly structured file with an unhelpful message, so
+these are asserted at build time instead.
+
+The package name is `incremental_reading_efdrc_fix` rather than the AnkiWeb ID,
+so AnkiWeb updates cannot overwrite it. It declares a conflict with the
+official add-on (`999215520`), which Anki disables on install — running both at
+once double-registers every hook and shortcut.
 
 Settings are unaffected: they live in `<profile>/collection.media/_ir.json`, not the add-on
 folder.
+
+### Releasing
+
+Pushing a tag beginning with `v` builds the add-on and publishes it as a
+release asset:
+
+```
+git tag v4.13.1 && git push origin v4.13.1
+```
 
 ### Licence
 
