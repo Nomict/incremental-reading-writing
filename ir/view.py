@@ -19,6 +19,7 @@ import re
 from anki.cards import Card
 from aqt import gui_hooks, mw
 
+from .edit_shortcuts import shortcutsJson
 from .legend import legendJson
 from .settings import SettingsManager
 from .util import isIrCard, loadFile, viewingIrText
@@ -33,6 +34,7 @@ class ViewManager:
         self._guttersScript = loadFile("web", "gutters.js")
         self._tocScript = loadFile("web", "table_of_contents.js")
         self._legendScript = loadFile("web", "shortcut_legend.js")
+        self._editShortcutsScript = loadFile("web", "edit_shortcuts.js")
         self._zoomFactor = 1
 
         gui_hooks.state_did_change.append(self.resetZoom)
@@ -106,6 +108,11 @@ class ViewManager:
             js += self._textScript
             js += self._guttersScript
             js += self._tocScript
+
+            # Reaches the commands while a field has the caret, where the Qt
+            # shortcuts cannot fire.
+            js += f"IR_EDIT_SHORTCUTS = {shortcutsJson(self._settings)};\n"
+            js += self._editShortcutsScript
 
             if self._settings["legendEnabled"]:
                 js += f"IR_LEGEND = {legendJson(self._settings)};\n"

@@ -26,6 +26,7 @@ from aqt.qt import sip
 from aqt.reviewer import Reviewer
 
 from .about import showAbout
+from .edit_shortcuts import parseCommand
 from .gui import SettingsDialog
 from .importer.importer import Importer
 from .schedule import Scheduler
@@ -46,6 +47,7 @@ class ReadingManager:
         self.viewManager = ViewManager()
         gui_hooks.profile_did_open.append(self.onProfileLoaded)
         gui_hooks.card_will_show.append(self.onPrepareQA)
+        gui_hooks.webview_did_receive_js_message.append(self.onJsMessage)
 
         addHook("overviewStateShortcuts", self.setShortcuts)
         addHook("reviewStateShortcuts", self.setReviewShortcuts)
@@ -104,6 +106,20 @@ class ReadingManager:
         addMenuItem("Read", "About...", showAbout)
 
         self.settings.loadMenuItems()
+
+    def onJsMessage(self, handled, message: str, context: Any):
+        """Runs a text command sent from the card script.
+
+        The card only sends these while a field is being edited, which is the
+        case the Qt shortcuts cannot reach. The commands check the selection
+        themselves, so a stray message does nothing.
+        """
+        command = parseCommand(message)
+        if command is None:
+            return handled
+
+        getattr(self.textManager, command)()
+        return (True, None)
 
     def onPrepareQA(self, text: str, card: Card, _kind: str) -> str:
         if self.settings["prioEnabled"]:
