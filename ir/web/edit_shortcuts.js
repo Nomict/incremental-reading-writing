@@ -73,7 +73,7 @@
     }
 
     clearPrevious();
-    for (const command of Object.keys(IR_EDIT_SHORTCUTS)) {
-        register(IR_EDIT_SHORTCUTS[command], command);
+    for (const shortcut of IR_EDIT_SHORTCUTS) {
+        register(shortcut.key, shortcut.command);
     }
 })();

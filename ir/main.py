@@ -26,7 +26,7 @@ from aqt.qt import sip
 from aqt.reviewer import Reviewer
 
 from .about import showAbout
-from .edit_shortcuts import parseCommand
+from .edit_shortcuts import QUICK_KIND, parseCommand
 from .gui import SettingsDialog
 from .importer.importer import Importer
 from .schedule import Scheduler
@@ -111,12 +111,24 @@ class ReadingManager:
         """Runs a text command sent from the card script.
 
         The card only sends these while a field is being edited, which is the
-        case the Qt shortcuts cannot reach. The commands check the selection
-        themselves, so a stray message does nothing.
+        case the Qt shortcuts cannot reach. Every command acts on a selection
+        and checks for one itself, so a stray message does nothing.
         """
-        command = parseCommand(message)
-        if command is None:
+        if not isinstance(context, Reviewer):
             return handled
+
+        parsed = parseCommand(message)
+        if parsed is None:
+            return handled
+
+        command, keyCombo = parsed
+
+        if command == QUICK_KIND:
+            # The combination may have been deleted since the card was drawn.
+            quickKeys = self.settings["quickKeys"]
+            if keyCombo in quickKeys:
+                self.textManager.extract(quickKeys[keyCombo])
+            return (True, None)
 
         getattr(self.textManager, command)()
         return (True, None)

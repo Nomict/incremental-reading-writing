@@ -14,18 +14,24 @@
 
 """The text commands, reached from the card rather than from a Qt shortcut.
 
-With a field focused for editing, QtWebEngine gives a plain letter to the
-editable and the window shortcut never fires, so the commands are unreachable
-exactly when a selection exists to act on. web/edit_shortcuts.js registers them
-with the editing add-on instead and sends the command here.
+With a field focused for editing, QtWebEngine gives the key to the editable and
+the window shortcut never fires, so the commands are unreachable exactly when a
+selection exists to act on. web/edit_shortcuts.js registers them with the
+editing add-on instead and sends the command here.
 
-Only commands that act on a selection are offered. Undo is not: it needs no
-selection, and its mw.reset() would pull the reviewer off the card.
+Quick keys are included: they are menu actions with their own key sequences
+(SettingsManager.loadMenuItems), so they are blocked in the same way, and each
+one carries its own destination note type and deck. The message names which.
+
+Undo is not offered. It needs no selection, and its mw.reset() would pull the
+reviewer off the card.
 """
 
 import json
+from typing import Optional, Tuple
 
 PREFIX = "ir:"
+QUICK_KIND = "quick"
 
 # command -> the setting holding its key
 COMMAND_KEYS = {
@@ -36,17 +42,25 @@ COMMAND_KEYS = {
 
 
 def shortcutsJson(settings) -> str:
-    """The command/key pairs for the card script.
+    """The key/command pairs for the card script.
 
-    Keys come from a fixed set of settings and are single characters, so there
-    is nothing here a user could use to break out of the script element; the
-    escaping is belt and braces.
+    A quick key's command carries the key combination it was defined under,
+    which is how the settings for that one are found again when it fires.
     """
-    shortcuts = {
-        command: settings[key]
+    shortcuts = [
+        {"key": settings[key], "command": command}
         for command, key in COMMAND_KEYS.items()
         if settings[key]
-    }
+    ]
+
+    shortcuts += [
+        {"key": keyCombo, "command": f"{QUICK_KIND}:{keyCombo}"}
+        for keyCombo in settings["quickKeys"]
+        if keyCombo
+    ]
+
+    # Quick key combinations are the user's own text and land inside a <script>
+    # element, so escape anything that could close it early.
     return (
         json.dumps(shortcuts)
         .replace("<", "\\u003c")
@@ -55,9 +69,20 @@ def shortcutsJson(settings) -> str:
     )
 
 
-def parseCommand(message: str):
-    """The command a pycmd message asks for, or None if it is not ours."""
+def parseCommand(message: str) -> Optional[Tuple[str, Optional[str]]]:
+    """What a pycmd message asks for, or None if it is not ours.
+
+    Returns (command, None) for a plain command, or ("quick", keyCombo) for a
+    quick key. The caller checks the combination still exists, so nothing
+    arbitrary reaches the text manager.
+    """
     if not isinstance(message, str) or not message.startswith(PREFIX):
         return None
-    command = message[len(PREFIX) :]
-    return command if command in COMMAND_KEYS else None
+
+    body = message[len(PREFIX) :]
+
+    if body.startswith(f"{QUICK_KIND}:"):
+        keyCombo = body[len(QUICK_KIND) + 1 :]
+        return (QUICK_KIND, keyCombo) if keyCombo else None
+
+    return (body, None) if body in COMMAND_KEYS else None
