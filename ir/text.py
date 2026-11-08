@@ -36,12 +36,34 @@ class TextManager:
     _history = defaultdict(list)
     _settings: SettingsManager = None
 
-    # True while a field is focused for editing by an add-on such as Edit Field
-    # During Review. The text commands are bound to bare letters, which are also
-    # ordinary typing, so they must do nothing while a field has the caret.
-    # Written as a self-contained expression so it can be embedded in other
-    # snippets. The activeElement branch only applies when the page itself has
-    # focus, so a field left active behind a dialog does not count as editing.
+    # True while the caret sits in a field with nothing selected. That is
+    # typing, and the text commands are bound to bare letters, so they have to
+    # stay out of the way.
+    #
+    # Focus alone is not the test. With the editing add-on's ctrl_click option
+    # off, every field is permanently contenteditable, and selecting text means
+    # clicking in it -- so the field is always focused at the moment a command
+    # is wanted, and gating on focus made extract impossible for those users.
+    # A selection is the signal instead: every one of these commands acts on
+    # one, and typing does not begin with text selected.
+    _IS_TYPING_JS = """
+(function () {
+    var active = document.activeElement;
+    var inField = !!(
+        document.hasFocus() &&
+        active && active.closest && active.closest("[data-EFDRCfield]")
+    );
+    if (!inField) {
+        return false;
+    }
+    var selection = window.getSelection();
+    return !selection || selection.isCollapsed || !selection.toString().trim();
+})()
+"""
+
+    # True while a field is focused at all, selection or not. Only undo uses
+    # this: it needs no selection, and its mw.reset() pulls the reviewer to
+    # another card, which would take unsaved typing with it.
     _IS_EDITING_JS = """
 (function () {
     if (document.querySelector("#qa[data-efdrc-editing]")) {
@@ -58,9 +80,9 @@ class TextManager:
     def changeProfile(self, settings: SettingsManager):
         self._settings = settings
 
-    def _evalUnlessEditing(self, script):
-        """Run script against the current card, unless a field is being edited."""
-        mw.web.eval(f"if (!{self._IS_EDITING_JS}) {{ {script} }}")
+    def _evalUnlessTyping(self, script):
+        """Run script against the current card, unless the user is typing."""
+        mw.web.eval(f"if (!{self._IS_TYPING_JS}) {{ {script} }}")
 
     def highlight(self, bgColor=None, textColor=None):
         if not bgColor:
@@ -69,15 +91,15 @@ class TextManager:
             textColor = self._settings["highlightTextColor"]
 
         script = f"highlight('{bgColor}', '{textColor}')"
-        self._evalUnlessEditing(script)
+        self._evalUnlessTyping(script)
         self.save()
 
     def format(self, style):
-        self._evalUnlessEditing(f"format('{style}')")
+        self._evalUnlessTyping(f"format('{style}')")
         self.save()
 
     def toggleOverlay(self):
-        self._evalUnlessEditing("toggleOverlay()")
+        self._evalUnlessTyping("toggleOverlay()")
         self.save()
 
     def extract(self, settings=None):
@@ -90,8 +112,8 @@ class TextManager:
         getText = "getPlainText()" if settings["plainText"] else "getHtmlText()"
 
         def callback(text):
-            # None means a field is being edited, so the key press was typing
-            # rather than a command. Say nothing and leave the text alone.
+            # None means the caret is in a field with nothing selected, so the
+            # key press was typing. Say nothing and leave the text alone.
             if text is None:
                 return
 
@@ -103,7 +125,7 @@ class TextManager:
 
         # getHtmlText() reads range 0, so guard the empty selection here too.
         mw.web.evalWithCallback(
-            f"{self._IS_EDITING_JS}"
+            f"{self._IS_TYPING_JS}"
             f" ? null"
             f" : (window.getSelection().rangeCount ? ({getText} || '') : '')",
             callback,
@@ -201,7 +223,7 @@ class TextManager:
         return accepted
 
     def remove(self):
-        self._evalUnlessEditing("removeText()")
+        self._evalUnlessTyping("removeText()")
         self.save()
 
     def undo(self):
@@ -228,31 +250,38 @@ class TextManager:
 
     # Reads back the text container's HTML. If another add-on (e.g. Edit Field
     # During Review) has wrapped the field in its own element, read the inside
-    # of that wrapper instead, so its markup is never stored in the field. The
-    # editing flag is passed in rather than tested here, to keep one definition
-    # of what editing means; mid-edit the wrapper holds the raw field value and
-    # the editing add-on owns saving it.
+    # of that wrapper, so its markup -- attributes and inline handlers and all
+    # -- is never stored in the field.
+    #
+    # This runs while a field is being edited too, which is deliberate. The
+    # wrapper holds the raw field value mid-edit, so the inside of it is
+    # exactly what belongs in the note; refusing to read it was what lost a
+    # highlight applied to selected text with the field focused.
     _READ_TEXT_JS = """
-(function (editing) {
-    if (editing) {
-        return null;
-    }
+(function () {
     var container = document.getElementsByClassName("ir-text")[0];
     if (!container) {
         return null;
     }
     var field = container.querySelector("[data-EFDRCfield]");
     return field ? field.innerHTML : container.innerHTML;
-})(%s);
+})();
 """
 
     def save(self):
         def callback(text):
-            if text:
-                note = mw.reviewer.card.note()
-                self._history[note.id].append(note["Text"])
-                note["Text"] = text
-                # note.flush()
-                mw.col.update_note(note)
+            if not text:
+                return
 
-        mw.web.evalWithCallback(self._READ_TEXT_JS % self._IS_EDITING_JS, callback)
+            note = mw.reviewer.card.note()
+            # A command that was suppressed still reaches here, so an unchanged
+            # field must not churn the note or stack up undo history.
+            if note["Text"] == text:
+                return
+
+            self._history[note.id].append(note["Text"])
+            note["Text"] = text
+            # note.flush()
+            mw.col.update_note(note)
+
+        mw.web.evalWithCallback(self._READ_TEXT_JS, callback)
